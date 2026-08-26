@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111111">
+    <title>Linkoteca</title>
+    <link rel="icon" href="/icon.png?v=28" type="image/png">
+    <link rel="manifest" href="/manifest.webmanifest?v=19">
+    <link rel="stylesheet" href="/styles.css?v=21">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark"><span class="icon" style="--icon: url('/icons/library.svg')"></span></span>
+          <span>
+            <strong>Linkoteca</strong>
+            <small>Biblioteca visual</small>
+          </span>
+        </div>
+
+        <div class="sidebar-actions">
+          <button id="allLinksButton" class="sidebar-button active" type="button">
+            <span class="button-left"><span class="icon" style="--icon: url('/icons/library.svg')"></span>Todos</span>
+            <span id="allCount" class="count">0</span>
+          </button>
+          <button id="duplicatesButton" class="sidebar-button" type="button">
+            <span class="button-left"><span class="icon" style="--icon: url('/icons/copy.svg')"></span>Duplicados</span>
+            <span id="duplicatesCount" class="count">0</span>
+          </button>
+          <button id="trashButton" class="sidebar-button" type="button">
+            <span class="button-left"><span class="icon" style="--icon: url('/icons/x.svg')"></span>Papelera</span>
+            <span id="trashCount" class="count">0</span>
+          </button>
+        </div>
+
+        <div class="folder-heading group-heading">
+          <span>Grupos</span>
+          <button id="newGroupButton" class="icon-button" type="button" title="Nuevo grupo" aria-label="Nuevo grupo">
+            <span class="icon" style="--icon: url('/icons/plus.svg')"></span>
+          </button>
+        </div>
+        <nav id="groupList" class="group-list" aria-label="Grupos de carpetas"></nav>
+
+        <div class="folder-heading">
+          <span>Carpetas</span>
+          <button id="newCategoryButton" class="icon-button" type="button" title="Nueva carpeta" aria-label="Nueva carpeta">
+            <span class="icon" style="--icon: url('/icons/plus.svg')"></span>
+          </button>
+        </div>
+        <label id="folderSearchWrap" class="folder-search-wrap">
+          <span class="icon" style="--icon: url('/icons/search.svg')"></span>
+          <input id="folderSearchInput" class="folder-search" type="search" placeholder="Filtrar carpetas" autocomplete="off">
+        </label>
+        <nav id="categoryList" class="category-list" aria-label="Carpetas"></nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="title-block">
+            <span class="eyebrow"><span class="icon" style="--icon: url('/icons/sparkles.svg')"></span> Colección personal</span>
+            <h1 id="activeTitle">Todos</h1>
+            <p id="libraryStats">Cargando...</p>
+            <label id="allDateFilterWrap" class="all-date-filter-wrap">
+              <span>Mostrar</span>
+              <select id="allDateFilter" aria-label="Periodo de enlaces sin carpeta"></select>
+            </label>
+          </div>
+          <div class="toolbar">
+            <label id="searchWrap" class="search-wrap">
+              <span class="icon" style="--icon: url('/icons/search.svg')"></span>
+              <input id="searchInput" class="search" type="search" placeholder="Buscar enlaces, carpetas o plataformas" autocomplete="off">
+            </label>
+            <button id="selectLinksButton" class="ghost-button" type="button" aria-pressed="false">
+              <span class="icon" style="--icon: url('/icons/check.svg')"></span>
+              Seleccionar
+            </button>
+            <button id="bulkDeleteButton" class="danger-button bulk-delete-button" type="button" hidden>
+              <span class="icon" style="--icon: url('/icons/trash.svg')"></span>
+              Borrar (<span id="bulkDeleteCount">0</span>)
+            </button>
+            <button id="emptyTrashButton" class="danger-button empty-trash-button" type="button" hidden>
+              <span class="icon" style="--icon: url('/icons/trash.svg')"></span>
+              Vaciar papelera
+            </button>
+            <button id="settingsButton" class="ghost-button" type="button">
+              <span class="icon" style="--icon: url('/icons/settings.svg')"></span>
+              Configuración
+            </button>
+          </div>
+        </header>
+
+        <section id="addBand" class="add-band" aria-label="Agregar enlace">
+          <div class="add-band-title">
+            <span class="icon" style="--icon: url('/icons/link.svg')"></span>
+            <span>Nuevo enlace</span>
+          </div>
+          <form id="addLinkForm" class="add-form">
+            <input id="linkUrlInput" type="url" required placeholder="Pega un enlace">
+            <input id="linkTitleInput" type="text" placeholder="Título opcional">
+            <select id="linkCategoryInput" aria-label="Carpeta"></select>
+            <button type="submit">
+              <span class="icon" style="--icon: url('/icons/plus.svg')"></span>
+              Agregar
+            </button>
+          </form>
+        </section>
+
+        <section id="gallery" class="gallery" aria-live="polite"></section>
+        <div id="emptyState" class="empty-state" hidden>No hay enlaces en esta vista.</div>
+      </main>
+    </div>
+
+    <dialog id="moveDialog" class="dialog">
+      <form method="dialog" class="dialog-panel">
+        <h2>Mover enlace</h2>
+        <label>
+          Carpeta
+          <select id="moveCategorySelect"></select>
+        </label>
+        <div class="dialog-actions">
+          <button value="cancel" class="ghost-button" type="submit">
+            <span class="icon" style="--icon: url('/icons/x.svg')"></span>
+            Cancelar
+          </button>
+          <button id="confirmMoveButton" value="default" type="button">
+            <span class="icon" style="--icon: url('/icons/move-right.svg')"></span>
+            Mover
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="detailDialog" class="dialog detail-dialog">
+      <form method="dialog" class="dialog-panel detail-panel">
+        <div id="detailPreview" class="detail-preview"></div>
+        <div class="detail-content">
+          <div class="detail-header">
+          <h2>Detalle del enlace</h2>
+            <button value="cancel" class="icon-button ghost-button" type="submit" aria-label="Cerrar">
+              <span class="icon" style="--icon: url('/icons/x.svg')"></span>
+            </button>
+          </div>
+          <label>
+            Título
+            <input id="detailTitleInput" type="text" maxlength="180" autocomplete="off">
+          </label>
+          <label>
+            Descripción
+            <textarea id="detailDescriptionInput" maxlength="1200" rows="5"></textarea>
+          </label>
+          <label>
+            Carpeta
+            <select id="detailCategorySelect"></select>
+          </label>
+          <label>
+            Enlace
+            <input id="detailUrlInput" type="url" readonly>
+          </label>
+          <div class="dialog-actions detail-actions">
+            <button id="detailOpenButton" class="ghost-button" type="button">
+              <span class="icon" style="--icon: url('/icons/arrow-up-right.svg')"></span>
+              Abrir
+            </button>
+            <button id="detailCopyButton" class="ghost-button" type="button">
+              <span class="icon" style="--icon: url('/icons/copy.svg')"></span>
+              Copiar
+            </button>
+            <button id="detailSaveButton" type="button">
+              <span class="icon" style="--icon: url('/icons/check.svg')"></span>
+              Guardar
+            </button>
+            <button id="detailDeleteButton" class="danger-button" type="button">
+              <span class="icon" style="--icon: url('/icons/x.svg')"></span>
+              Borrar
+            </button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="categoryDialog" class="dialog">
+      <form method="dialog" class="dialog-panel">
+        <h2 id="categoryDialogTitle">Nueva carpeta</h2>
+        <label>
+          Nombre
+          <input id="categoryNameInput" type="text" maxlength="120" autocomplete="off">
+        </label>
+        <label>
+          Grupo
+          <select id="categoryGroupInput"></select>
+        </label>
+        <div class="dialog-actions">
+          <button value="cancel" class="ghost-button" type="submit">
+            <span class="icon" style="--icon: url('/icons/x.svg')"></span>
+            Cancelar
+          </button>
+          <button id="confirmCategoryButton" type="button">
+            <span class="icon" style="--icon: url('/icons/folder.svg')"></span>
+            <span id="confirmCategoryLabel">Crear</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="groupDialog" class="dialog">
+      <form method="dialog" class="dialog-panel">
+        <h2 id="groupDialogTitle">Nuevo grupo</h2>
+        <label>
+          Nombre
+          <input id="groupNameInput" type="text" maxlength="120" autocomplete="off">
+        </label>
+        <div class="dialog-actions">
+          <button value="cancel" class="ghost-button" type="submit">
+            <span class="icon" style="--icon: url('/icons/x.svg')"></span>
+            Cancelar
+          </button>
+          <button id="confirmGroupButton" type="button">
+            <span class="icon" style="--icon: url('/icons/check.svg')"></span>
+            <span id="confirmGroupLabel">Crear</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="settingsDialog" class="dialog settings-dialog">
+      <form method="dialog" class="dialog-panel settings-panel">
+        <div class="settings-header">
+          <div>
+            <span class="eyebrow"><span class="icon" style="--icon: url('/icons/settings.svg')"></span> Centro de control</span>
+            <h2>Configuración</h2>
+          </div>
+          <button value="cancel" class="icon-button ghost-button" type="submit" aria-label="Cerrar">
+            <span class="icon" style="--icon: url('/icons/x.svg')"></span>
+          </button>
+        </div>
+
+        <section class="settings-section">
+          <h3>Créditos</h3>
+          <div class="credit-grid">
+            <div>
+              <strong>Propietario</strong>
+              <span>Ernesto Pernett - Ingeniero Mecánico</span>
+            </div>
+            <div>
+              <strong>Asistencia técnica</strong>
+              <span>Codex de OpenAI - desarrollo, diseño y automatización asistida</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h3>Perfil del desarrollador</h3>
+          <a class="ghost-button github-profile-button" href="https://github.com/colombianitov2" target="_blank" rel="noopener noreferrer">
+            <span class="icon" style="--icon: url('/icons/github.svg')"></span>
+            Abrir perfil de GitHub
+          </a>
+        </section>
+
+        <section class="settings-section">
+          <h3>Versión</h3>
+          <p class="settings-note">Linkoteca <strong id="localVersion">1.0.3</strong> · almacenamiento local únicamente</p>
+        </section>
+
+        <section class="settings-section">
+          <h3>Exportar e importar</h3>
+          <label>
+            Formato
+            <select id="dataFormatInput">
+              <option value="json">JSON</option>
+              <option value="csv">CSV</option>
+              <option value="txt">TXT</option>
+              <option value="xls">Excel (.xls)</option>
+            </select>
+          </label>
+          <div class="dialog-actions inline-actions">
+            <button id="exportDataButton" class="ghost-button" type="button">
+              <span class="icon" style="--icon: url('/icons/download.svg')"></span>
+              Exportar
+            </button>
+            <button id="importDataButton" class="ghost-button" type="button">
+              <span class="icon" style="--icon: url('/icons/upload.svg')"></span>
+              Importar
+            </button>
+            <input id="importFileInput" type="file" hidden>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h3>Instrucciones rápidas</h3>
+          <ol class="instructions-list">
+            <li>Pega un enlace, elige carpeta y pulsa Agregar.</li>
+            <li>Haz clic en una tarjeta o en Editar para corregir título, descripción o carpeta.</li>
+            <li>Usa Copiar para compartir el enlace original.</li>
+            <li>Usa Exportar para respaldar e Importar para recuperar tus enlaces.</li>
+          </ol>
+        </section>
+
+        <div class="dialog-actions settings-savebar">
+          <button id="saveSettingsButton" type="button">
+            <span class="icon" style="--icon: url('/icons/check.svg')"></span>
+            Guardar configuración
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="/android-local-api.js?v=1"></script>
+    <script src="/app.js?v=28" type="module"></script>
+  </body>
+</html>
