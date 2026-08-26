@@ -7,7 +7,7 @@
     <title>Linkoteca</title>
     <link rel="icon" href="/icon.png?v=28" type="image/png">
     <link rel="manifest" href="/manifest.webmanifest?v=19">
-    <link rel="stylesheet" href="/styles.css?v=21">
+    <link rel="stylesheet" href="/styles.css?v=26">
   </head>
   <body>
     <div class="app-shell">
@@ -20,11 +20,20 @@
           </span>
         </div>
 
-        <div class="sidebar-actions">
-          <button id="allLinksButton" class="sidebar-button active" type="button">
-            <span class="button-left"><span class="icon" style="--icon: url('/icons/library.svg')"></span>Todos</span>
-            <span id="allCount" class="count">0</span>
+        <div class="sidebar-quick-actions">
+          <button id="sidebarSettingsButton" class="icon-button sidebar-settings-button" type="button" title="Configuración" aria-label="Configuración">
+            <span class="icon" style="--icon: url('/icons/settings.svg')"></span>
           </button>
+          <button id="sidebarAddButton" class="icon-button sidebar-add-button" type="button" title="Agregar enlace" aria-label="Agregar enlace">
+            <span class="icon" style="--icon: url('/icons/plus.svg')"></span>
+          </button>
+          <button id="sidebarToggleButton" class="sidebar-toggle" type="button" aria-expanded="true" title="Ocultar barra lateral">
+            <span class="icon" style="--icon: url('/icons/panel-left.svg')"></span>
+            <span class="sidebar-toggle-label">Ocultar panel</span>
+          </button>
+        </div>
+
+        <div class="sidebar-actions">
           <button id="duplicatesButton" class="sidebar-button" type="button">
             <span class="button-left"><span class="icon" style="--icon: url('/icons/copy.svg')"></span>Duplicados</span>
             <span id="duplicatesCount" class="count">0</span>
@@ -32,6 +41,10 @@
           <button id="trashButton" class="sidebar-button" type="button">
             <span class="button-left"><span class="icon" style="--icon: url('/icons/x.svg')"></span>Papelera</span>
             <span id="trashCount" class="count">0</span>
+          </button>
+          <button id="allLinksButton" class="sidebar-button active" type="button">
+            <span class="button-left"><span class="icon" style="--icon: url('/icons/library.svg')"></span>Todos</span>
+            <span id="allCount" class="count">0</span>
           </button>
         </div>
 
@@ -75,6 +88,10 @@
             <button id="selectLinksButton" class="ghost-button" type="button" aria-pressed="false">
               <span class="icon" style="--icon: url('/icons/check.svg')"></span>
               Seleccionar
+            </button>
+            <button id="bulkMoveButton" class="ghost-button bulk-move-button" type="button" hidden>
+              <span class="icon" style="--icon: url('/icons/move-right.svg')"></span>
+              Mover
             </button>
             <button id="bulkDeleteButton" class="danger-button bulk-delete-button" type="button" hidden>
               <span class="icon" style="--icon: url('/icons/trash.svg')"></span>
@@ -261,6 +278,11 @@
         <section class="settings-section">
           <h3>Versión</h3>
           <p class="settings-note">Linkoteca <strong id="localVersion">1.0.3</strong> · almacenamiento local únicamente</p>
+          <button id="checkUpdateButton" class="ghost-button github-profile-button" type="button">
+            <span class="icon" style="--icon: url('/icons/refresh-cw.svg')"></span>
+            Buscar actualización
+          </button>
+          <p id="updateStatus" class="settings-note" hidden></p>
         </section>
 
         <section class="settings-section">

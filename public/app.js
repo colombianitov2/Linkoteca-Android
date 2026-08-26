@@ -7,6 +7,12 @@ function loadCollapsedGroupIds() {
   }
 }
 
+function loadSidebarCollapsed() {
+  const saved = localStorage.getItem("linkotecaSidebarCollapsed");
+  if (saved !== null) return saved === "1";
+  return window.matchMedia?.("(max-width: 700px)").matches === true;
+}
+
 const state = {
   db: null,
   activeCategoryId: "all",
@@ -21,6 +27,10 @@ const state = {
   detailLinkId: null,
   editingCategoryId: null,
   editingGroupId: null,
+  sidebarCollapsed: loadSidebarCollapsed(),
+  mobileAddOpen: false,
+  movingSelectedLinks: false,
+  suppressNextCardClick: false,
   selectionMode: false,
   selectedLinkIds: new Set(),
   sessionToken: "",
@@ -30,6 +40,10 @@ const state = {
 const PENDING_SHARES_KEY = "linkotecaPendingShares";
 
 const els = {
+  appShell: document.querySelector(".app-shell"),
+  sidebarSettingsButton: document.querySelector("#sidebarSettingsButton"),
+  sidebarAddButton: document.querySelector("#sidebarAddButton"),
+  sidebarToggleButton: document.querySelector("#sidebarToggleButton"),
   allLinksButton: document.querySelector("#allLinksButton"),
   allCount: document.querySelector("#allCount"),
   duplicatesButton: document.querySelector("#duplicatesButton"),
@@ -43,6 +57,7 @@ const els = {
   searchWrap: document.querySelector("#searchWrap"),
   searchInput: document.querySelector("#searchInput"),
   selectLinksButton: document.querySelector("#selectLinksButton"),
+  bulkMoveButton: document.querySelector("#bulkMoveButton"),
   bulkDeleteButton: document.querySelector("#bulkDeleteButton"),
   bulkDeleteCount: document.querySelector("#bulkDeleteCount"),
   emptyTrashButton: document.querySelector("#emptyTrashButton"),
@@ -86,6 +101,8 @@ const els = {
   folderSearchWrap: document.querySelector("#folderSearchWrap"),
   folderSearchInput: document.querySelector("#folderSearchInput"),
   localVersion: document.querySelector("#localVersion"),
+  checkUpdateButton: document.querySelector("#checkUpdateButton"),
+  updateStatus: document.querySelector("#updateStatus"),
   dataFormatInput: document.querySelector("#dataFormatInput"),
   exportDataButton: document.querySelector("#exportDataButton"),
   importDataButton: document.querySelector("#importDataButton"),
@@ -424,12 +441,14 @@ function filteredLinks() {
   const hideViewControls = state.activeCategoryId === "trash" || state.activeCategoryId === "duplicates";
   const term = hideViewControls ? "" : state.search.trim().toLowerCase();
   const duplicateUrls = state.activeCategoryId === "duplicates" ? duplicateUrlSet() : null;
+  const activeCategory = state.db.categories.find((category) => category.id === state.activeCategoryId);
   return state.db.links.filter((link) => {
     const archived = Boolean(link.archived);
     const inCategory =
       (state.activeCategoryId === "trash" && archived) ||
+      (Boolean(activeCategory?.archived) && archived && link.categoryId === state.activeCategoryId) ||
       (!archived && (
-        (state.activeCategoryId === "all" && !link.categoryId && linkMatchesAllPeriod(link)) ||
+        state.activeCategoryId === "all" ||
         (state.activeCategoryId === "duplicates" && duplicateUrls.has(normalizedUrl(link.url))) ||
         link.categoryId === state.activeCategoryId
       ));
@@ -457,7 +476,35 @@ function clearLinkSelection(options = {}) {
 function activateView(categoryId) {
   clearLinkSelection();
   state.activeCategoryId = categoryId;
+  const activeCategory = state.db.categories.find((category) => category.id === categoryId);
+  if (activeCategory && !activeCategory.archived) {
+    localStorage.setItem("linkotecaLastFolderId", categoryId);
+  }
+  const mobileView = window.matchMedia?.("(max-width: 980px)").matches === true;
+  if (mobileView && !state.sidebarCollapsed) {
+    state.sidebarCollapsed = true;
+    persistSidebarState();
+  }
   render();
+}
+
+function persistSidebarState() {
+  localStorage.setItem("linkotecaSidebarCollapsed", state.sidebarCollapsed ? "1" : "0");
+}
+
+function renderSidebarState() {
+  els.appShell.classList.toggle("sidebar-collapsed", state.sidebarCollapsed);
+  els.sidebarToggleButton.setAttribute("aria-expanded", String(!state.sidebarCollapsed));
+  els.sidebarToggleButton.title = state.sidebarCollapsed ? "Mostrar barra lateral" : "Ocultar barra lateral";
+  els.sidebarToggleButton.setAttribute("aria-label", state.sidebarCollapsed ? "Mostrar barra lateral" : "Ocultar barra lateral");
+  const compactSearch = window.matchMedia?.("(max-width: 560px)").matches === true && state.sidebarCollapsed;
+  els.searchInput.placeholder = compactSearch ? "Buscar" : "Buscar enlaces, carpetas o plataformas";
+}
+
+function toggleSidebar() {
+  state.sidebarCollapsed = !state.sidebarCollapsed;
+  persistSidebarState();
+  renderSidebarState();
 }
 
 function pruneLinkSelection(links) {
@@ -478,11 +525,14 @@ function renderSelectionControls() {
     : `${icon("check")}Seleccionar`;
   els.bulkDeleteCount.textContent = String(selectedCount);
   els.bulkDeleteButton.hidden = selectedCount === 0;
+  els.bulkMoveButton.hidden = selectedCount === 0 || inTrash;
   els.emptyTrashButton.hidden = !inTrash;
   els.emptyTrashButton.disabled = archivedLinkCount === 0;
-  els.searchWrap.hidden = hideViewControls;
+  els.searchWrap.hidden = false;
   els.folderSearchWrap.hidden = hideViewControls;
-  els.addBand.hidden = hideViewControls;
+  const compactMobile = window.matchMedia?.("(max-width: 980px)").matches === true;
+  els.addBand.hidden = hideViewControls || (compactMobile && state.sidebarCollapsed && !state.mobileAddOpen);
+  els.addBand.classList.toggle("mobile-add-open", compactMobile && state.sidebarCollapsed && state.mobileAddOpen && !hideViewControls);
   els.settingsButton.hidden = hideViewControls;
   els.gallery.classList.toggle("selection-mode", state.selectionMode);
 }
@@ -493,6 +543,14 @@ function toggleSelectionMode() {
     state.selectionMode = true;
     state.selectedLinkIds.clear();
   }
+  renderGallery();
+}
+
+function startSelectionFromLink(linkId) {
+  state.selectionMode = true;
+  state.selectedLinkIds.clear();
+  state.selectedLinkIds.add(linkId);
+  state.suppressNextCardClick = true;
   renderGallery();
 }
 
@@ -543,7 +601,7 @@ function createCategoryRow(category, counts) {
       <span class="count">${counts.get(category.id) || 0}</span>
     `;
     button.addEventListener("click", () => {
-      activateView(category.archived ? "trash" : category.id);
+      activateView(category.id);
     });
     const editButton = document.createElement("button");
     editButton.type = "button";
@@ -577,13 +635,12 @@ function persistCollapsedGroups() {
 function renderCategories() {
   const counts = countByCategory();
   const activeLinks = state.db.links.filter((link) => !link.archived);
-  const unassignedLinks = activeLinks.filter((link) => !link.categoryId);
   const duplicatesSet = duplicateUrlSet();
   const duplicatesCount = activeLinks.filter((link) => duplicatesSet.has(normalizedUrl(link.url))).length;
   const trashCount = state.db.links.filter((link) => link.archived).length
     + state.db.categories.filter((category) => category.archived).length
     + (state.db.groups || []).filter((group) => group.archived).length;
-  els.allCount.textContent = unassignedLinks.length;
+  els.allCount.textContent = activeLinks.length;
   els.duplicatesCount.textContent = duplicatesCount;
   els.trashCount.textContent = trashCount;
   els.groupList.innerHTML = "";
@@ -683,9 +740,7 @@ function renderGallery() {
   els.gallery.innerHTML = "";
   els.emptyState.hidden = links.length > 0;
   if (state.activeCategoryId === "all") {
-    els.emptyState.textContent = state.allDateFilter === "blank"
-      ? "Panel en blanco. Elige un periodo para ver enlaces sin carpeta."
-      : "No hay enlaces sin carpeta en este periodo.";
+    els.emptyState.textContent = "No hay enlaces activos.";
   } else if (state.activeCategoryId === "trash") {
     els.emptyState.textContent = "No hay enlaces en la Papelera.";
   } else {
@@ -724,7 +779,40 @@ function renderGallery() {
              <button type="button" data-action="delete" title="Borrar enlace">${icon("trash")}Borrar</button>`}
       </div>
     `;
+    let longPressTimer = null;
+    let longPressStartX = 0;
+    let longPressStartY = 0;
+    const clearLongPressTimer = () => {
+      if (!longPressTimer) return;
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    };
+    article.addEventListener("pointerdown", (event) => {
+      if (state.selectionMode || event.target.closest("button") || event.isPrimary === false) return;
+      clearLongPressTimer();
+      longPressStartX = event.clientX;
+      longPressStartY = event.clientY;
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        startSelectionFromLink(link.id);
+      }, 2000);
+    });
+    article.addEventListener("pointermove", (event) => {
+      if (!longPressTimer) return;
+      if (Math.hypot(event.clientX - longPressStartX, event.clientY - longPressStartY) > 12) {
+        clearLongPressTimer();
+      }
+    });
+    article.addEventListener("pointerup", clearLongPressTimer);
+    article.addEventListener("pointercancel", clearLongPressTimer);
+    article.addEventListener("pointerleave", clearLongPressTimer);
     article.addEventListener("click", (event) => {
+      if (state.suppressNextCardClick) {
+        state.suppressNextCardClick = false;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (state.selectionMode) {
         if (!event.target.closest('[data-action="select"]')) toggleLinkSelection(link.id);
         return;
@@ -773,6 +861,7 @@ function renderGallery() {
 }
 
 function render() {
+  renderSidebarState();
   renderCategoryOptions();
   renderCategories();
   renderAllDateFilter();
@@ -796,9 +885,18 @@ async function copyLink(url) {
 }
 
 function openMoveDialog(linkId) {
+  state.movingSelectedLinks = false;
   state.movingLinkId = linkId;
   const link = state.db.links.find((item) => item.id === linkId);
   if (link) els.moveCategorySelect.value = link.categoryId || "";
+  els.moveDialog.showModal();
+}
+
+function openMoveSelectedDialog() {
+  if (state.selectedLinkIds.size === 0) return;
+  state.movingSelectedLinks = true;
+  state.movingLinkId = null;
+  els.moveCategorySelect.value = "";
   els.moveDialog.showModal();
 }
 
@@ -832,6 +930,10 @@ function openDetailDialog(linkId) {
 }
 
 async function moveCurrentLink() {
+  if (state.movingSelectedLinks) {
+    await moveSelectedLinks();
+    return;
+  }
   if (!state.movingLinkId) return;
   const categoryId = els.moveCategorySelect.value;
   const data = await api(`/api/links/${state.movingLinkId}`, {
@@ -844,6 +946,32 @@ async function moveCurrentLink() {
   state.movingLinkId = null;
   render();
   toast("Enlace movido");
+}
+
+async function moveSelectedLinks() {
+  const ids = [...state.selectedLinkIds];
+  if (ids.length === 0) return;
+  const categoryId = els.moveCategorySelect.value;
+  els.confirmMoveButton.disabled = true;
+  try {
+    const movedLinks = [];
+    for (const id of ids) {
+      const data = await api(`/api/links/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ categoryId })
+      });
+      movedLinks.push(data.link);
+    }
+    const movedById = new Map(movedLinks.map((link) => [link.id, link]));
+    state.db.links = state.db.links.map((link) => movedById.get(link.id) || link);
+    els.moveDialog.close();
+    state.movingSelectedLinks = false;
+    clearLinkSelection();
+    render();
+    toast(`${ids.length} enlace(s) movido(s)`);
+  } finally {
+    els.confirmMoveButton.disabled = false;
+  }
 }
 
 async function saveDetail() {
@@ -1101,6 +1229,7 @@ async function addLink(event) {
   state.db.links.unshift(data.link);
   els.linkUrlInput.value = "";
   els.linkTitleInput.value = "";
+  state.mobileAddOpen = false;
   render();
   toast("Enlace agregado");
 }
@@ -1131,11 +1260,25 @@ async function saveSettings() {
 
 function downloadData() {
   const format = els.dataFormatInput.value || "json";
+  const extension = format === "json" ? "json" : format === "csv" ? "csv" : format === "xls" ? "xls" : "txt";
+  const fileName = `linkoteca-android.${extension}`;
+  const mimeType = format === "json"
+    ? "application/json"
+    : format === "csv"
+      ? "text/csv"
+      : format === "xls"
+        ? "application/vnd.ms-excel"
+        : "text/plain";
   if (window.linkotecaAndroidExport) {
-    const blob = new Blob([window.linkotecaAndroidExport(format)], { type: format === "json" ? "application/json" : "text/plain" });
+    const content = window.linkotecaAndroidExport(format);
+    if (window.LinkotecaFiles?.saveFile) {
+      window.LinkotecaFiles.saveFile(fileName, mimeType, content);
+      return;
+    }
+    const blob = new Blob([content], { type: mimeType });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `linkoteca-android.${format === "json" ? "json" : format === "csv" ? "csv" : "txt"}`;
+    link.download = fileName;
     link.click();
     URL.revokeObjectURL(link.href);
     return;
@@ -1143,13 +1286,28 @@ function downloadData() {
   window.open(`/api/export/${format}`, "_blank", "noopener");
 }
 
+function checkForUpdate() {
+  if (!window.LinkotecaUpdater?.checkForUpdate) {
+    toast("La actualización automática solo está disponible en la app Android");
+    return;
+  }
+  els.checkUpdateButton.disabled = true;
+  els.updateStatus.hidden = false;
+  els.updateStatus.textContent = "Buscando la versión más reciente…";
+  window.LinkotecaUpdater.checkForUpdate();
+}
+
 async function importData(file) {
+  return importDataContent(await file.text());
+}
+
+async function importDataContent(content) {
   const format = els.dataFormatInput.value || "json";
   const result = await api("/api/import", {
     method: "POST",
     body: JSON.stringify({
       format,
-      content: await file.text()
+      content
     })
   });
   await load();
@@ -1173,6 +1331,10 @@ async function load() {
   try {
     const [database, version] = await Promise.all([api("/api/library"), api("/api/version")]);
     state.db = database;
+    const lastFolderId = localStorage.getItem("linkotecaLastFolderId");
+    if (lastFolderId && database.categories.some((category) => category.id === lastFolderId && !category.archived)) {
+      state.activeCategoryId = lastFolderId;
+    }
     state.appVersion = version.version;
     render();
     await processQueuedSharedLinks();
@@ -1194,12 +1356,30 @@ els.trashButton.addEventListener("click", () => {
   activateView("trash");
 });
 
+els.sidebarToggleButton.addEventListener("click", () => {
+  toggleSidebar();
+});
+
+els.sidebarSettingsButton.addEventListener("click", () => {
+  openSettingsDialog();
+});
+
+els.sidebarAddButton.addEventListener("click", () => {
+  state.mobileAddOpen = !state.mobileAddOpen;
+  renderSelectionControls();
+  if (state.mobileAddOpen) els.linkUrlInput.focus();
+});
+
 els.selectLinksButton.addEventListener("click", () => {
   toggleSelectionMode();
 });
 
 els.bulkDeleteButton.addEventListener("click", () => {
   deleteSelectedLinks().catch((error) => toast(error.message));
+});
+
+els.bulkMoveButton.addEventListener("click", () => {
+  openMoveSelectedDialog();
 });
 
 els.emptyTrashButton.addEventListener("click", () => {
@@ -1277,12 +1457,21 @@ els.saveSettingsButton.addEventListener("click", () => {
   saveSettings().catch((error) => toast(error.message));
 });
 
+els.checkUpdateButton.addEventListener("click", () => {
+  checkForUpdate();
+});
+
 els.exportDataButton.addEventListener("click", () => {
   downloadData();
 });
 
 els.importDataButton.addEventListener("click", () => {
   const extensions = { json: ".json", csv: ".csv", txt: ".txt", xls: ".xls" };
+  const mimeTypes = { json: "application/json", csv: "text/csv", txt: "text/plain", xls: "application/vnd.ms-excel" };
+  if (window.LinkotecaFiles?.openFile) {
+    window.LinkotecaFiles.openFile(mimeTypes[els.dataFormatInput.value] || "*/*");
+    return;
+  }
   els.importFileInput.accept = extensions[els.dataFormatInput.value] || ".json";
   els.importFileInput.click();
 });
@@ -1291,6 +1480,35 @@ els.importFileInput.addEventListener("change", () => {
   const [file] = els.importFileInput.files;
   if (file) importData(file).catch((error) => toast(error.message));
   els.importFileInput.value = "";
+});
+
+window.addEventListener("linkoteca:export-complete", () => {
+  toast("Respaldo exportado");
+});
+
+window.addEventListener("linkoteca:import-file", () => {
+  const content = window.LinkotecaFiles?.takeImportedContent?.() || "";
+  window.LinkotecaFiles?.takeImportedName?.();
+  if (!content) {
+    toast("El archivo seleccionado está vacío");
+    return;
+  }
+  importDataContent(content).catch((error) => toast(error.message));
+});
+
+window.addEventListener("linkoteca:file-error", (event) => {
+  toast(event.detail || "No se pudo procesar el archivo");
+});
+
+window.addEventListener("linkoteca:update-status", (event) => {
+  const detail = event.detail || {};
+  const finished = ["up-to-date", "permission", "installing", "error"].includes(detail.status);
+  els.checkUpdateButton.disabled = !finished;
+  els.updateStatus.hidden = false;
+  els.updateStatus.textContent = detail.message || "Procesando actualización…";
+  if (detail.status === "up-to-date" || detail.status === "error") {
+    toast(detail.message || "No se pudo buscar la actualización");
+  }
 });
 
 els.folderSearchInput.addEventListener("input", (event) => {

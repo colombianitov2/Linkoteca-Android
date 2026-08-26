@@ -1,6 +1,6 @@
 (() => {
   const STORAGE_KEY = "linkotecaAndroidDatabase";
-  const APP_VERSION = "1.0.0";
+  const APP_VERSION = "1.0.3";
   const inactiveStatuses = new Set(["trash", "deleted", "eliminado", "papelera"]);
 
   const id = (prefix) => `${prefix}-${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
@@ -24,11 +24,7 @@
       version: 2,
       createdAt: timestamp,
       updatedAt: timestamp,
-      categories: [{
-        id: id("category"), name: "Todos", slug: "todos", parentId: null, groupId: null,
-        source: "android", createdAt: timestamp, updatedAt: timestamp,
-        archived: false, archivedAt: "", archivedBy: ""
-      }],
+      categories: [],
       groups: [],
       links: [],
       settings: {
@@ -39,11 +35,26 @@
     };
   }
 
+  function migrateDatabase(database) {
+    const fakeTodosIds = new Set(
+      database.categories
+        .filter((item) => item.archived !== true && String(item.name || "").trim().toLowerCase() === "todos" && (!item.groupId || item.source === "android" || item.source === "restore"))
+        .map((item) => item.id)
+    );
+    if (!fakeTodosIds.size) return false;
+    for (const link of database.links) {
+      if (fakeTodosIds.has(link.categoryId)) link.categoryId = null;
+    }
+    database.categories = database.categories.filter((item) => !fakeTodosIds.has(item.id));
+    return true;
+  }
+
   function readDatabase() {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
       if (parsed && Array.isArray(parsed.links) && Array.isArray(parsed.categories) && Array.isArray(parsed.groups)) {
         parsed.settings ||= createDefaultDatabase().settings;
+        if (migrateDatabase(parsed)) writeDatabase(parsed);
         return parsed;
       }
     } catch { /* corrupted local data is replaced with a clean local library */ }
@@ -77,16 +88,6 @@
     return link && link.archived !== true && !inactiveStatuses.has(String(link.status || "").toLowerCase());
   }
 
-  function ensureTodos(database) {
-    let category = database.categories.find((item) => item.archived !== true && String(item.name).trim().toLowerCase() === "todos");
-    if (!category) {
-      const timestamp = now();
-      category = { id: id("category"), name: "Todos", slug: "todos", parentId: null, groupId: null, source: "android", createdAt: timestamp, updatedAt: timestamp, archived: false, archivedAt: "", archivedBy: "" };
-      database.categories.push(category);
-    }
-    return category;
-  }
-
   function exportDatabase(database) {
     return {
       format: "linkoteca-local-export",
@@ -103,6 +104,110 @@
     const rows = [["title", "url", "description", "category", "archived"]];
     for (const link of database.links) rows.push([link.title, link.url, link.description, findCategory(database, link.categoryId)?.name || "", link.archived ? "true" : "false"]);
     return rows.map((row) => row.map(quote).join(",")).join("\n");
+  }
+
+  function csvImport(content) {
+    const rows = [];
+    let row = [];
+    let field = "";
+    let quoted = false;
+    const text = String(content || "").replace(/\r\n/g, "\n");
+    for (let index = 0; index <= text.length; index += 1) {
+      const character = text[index] || "\n";
+      if (character === '"') {
+        if (quoted && text[index + 1] === '"') { field += '"'; index += 1; }
+        else quoted = !quoted;
+      } else if (character === "," && !quoted) {
+        row.push(field); field = "";
+      } else if (character === "\n" && !quoted) {
+        row.push(field); field = "";
+        if (row.some((value) => value.trim())) rows.push(row);
+        row = [];
+      } else {
+        field += character;
+      }
+    }
+    const headers = (rows.shift() || []).map((value) => value.trim().toLowerCase());
+    return {
+      links: rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] || ""])))
+    };
+  }
+
+  function textImport(content) {
+    const urls = String(content || "").match(/https?:\/\/[^\s]+/gi) || [];
+    return { links: urls.map((url) => ({ url, title: url })) };
+  }
+
+  function mergeImport(database, imported) {
+    const groupIds = new Map();
+    const categoryIds = new Map();
+    for (const source of (Array.isArray(imported.groups) ? imported.groups : [])) {
+      const sourceId = String(source.id || "");
+      let target = database.groups.find((group) => sourceId && group.id === sourceId)
+        || database.groups.find((group) => String(group.name || "").trim().toLowerCase() === String(source.name || "").trim().toLowerCase());
+      if (!target) {
+        target = {
+          id: sourceId && !database.groups.some((group) => group.id === sourceId) ? sourceId : id("group"),
+          name: String(source.name || "Grupo importado").trim(),
+          slug: String(source.slug || ""),
+          archived: Boolean(source.archived),
+          archivedAt: String(source.archivedAt || ""),
+          createdAt: source.createdAt || now(),
+          updatedAt: source.updatedAt || now()
+        };
+        database.groups.push(target);
+      }
+      if (sourceId) groupIds.set(sourceId, target.id);
+    }
+
+    for (const source of (Array.isArray(imported.categories) ? imported.categories : [])) {
+      const sourceId = String(source.id || "");
+      const mappedGroupId = groupIds.get(String(source.groupId || "")) || null;
+      let target = database.categories.find((category) => sourceId && category.id === sourceId)
+        || database.categories.find((category) => String(category.name || "").trim().toLowerCase() === String(source.name || "").trim().toLowerCase() && (category.groupId || null) === mappedGroupId);
+      if (!target) {
+        target = {
+          id: sourceId && !database.categories.some((category) => category.id === sourceId) ? sourceId : id("category"),
+          name: String(source.name || "Carpeta importada").trim(),
+          slug: String(source.slug || ""),
+          parentId: null,
+          groupId: mappedGroupId,
+          archived: Boolean(source.archived),
+          archivedAt: String(source.archivedAt || ""),
+          createdAt: source.createdAt || now(),
+          updatedAt: source.updatedAt || now()
+        };
+        database.categories.push(target);
+      }
+      if (sourceId) categoryIds.set(sourceId, target.id);
+    }
+
+    const existing = new Set(database.links.map((link) => normalizedUrl(link.url)));
+    let count = 0;
+    for (const source of (Array.isArray(imported.links) ? imported.links : [])) {
+      const url = String(source.url || "").trim();
+      if (!/^https?:\/\//i.test(url) || existing.has(normalizedUrl(url))) continue;
+      const timestamp = now();
+      const archived = source.archived === true || String(source.archived || "").toLowerCase() === "true";
+      database.links.push({
+        id: source.id && !database.links.some((link) => link.id === source.id) ? String(source.id) : id("link"),
+        url,
+        title: String(source.title || url),
+        description: String(source.description || ""),
+        thumbnail: String(source.thumbnail || ""),
+        platform: String(source.platform || hostFromUrl(url)),
+        tags: Array.isArray(source.tags) ? source.tags : [],
+        categoryId: categoryIds.get(String(source.categoryId || "")) || null,
+        status: archived ? "archivado" : "confirmado",
+        createdAt: source.createdAt || timestamp,
+        updatedAt: source.updatedAt || timestamp,
+        archived,
+        archivedAt: archived ? String(source.archivedAt || timestamp) : ""
+      });
+      existing.add(normalizedUrl(url));
+      count += 1;
+    }
+    return count;
   }
 
   async function androidApi(path, options = {}) {
@@ -128,7 +233,7 @@
       if (!/^https?:\/\//i.test(url)) throw new Error("Escribe un enlace válido");
       if (links.some((link) => normalizedUrl(link.url) === normalizedUrl(url) && !link.archived)) throw new Error("Este enlace ya existe");
       const timestamp = now();
-      const link = { id: id("link"), url, title: String(payload.title || url).trim(), description: String(payload.description || ""), thumbnail: String(payload.thumbnail || ""), platform: hostFromUrl(url), tags: Array.isArray(payload.tags) ? payload.tags : [], categoryId: payload.categoryId || ensureTodos(database).id, status: "confirmado", confidence: 0, source: "android", sourceSheet: "", sourceCell: "", createdAt: timestamp, updatedAt: timestamp, archived: false, archivedAt: "" };
+      const link = { id: id("link"), url, title: String(payload.title || url).trim(), description: String(payload.description || ""), thumbnail: String(payload.thumbnail || ""), platform: hostFromUrl(url), tags: Array.isArray(payload.tags) ? payload.tags : [], categoryId: payload.categoryId || null, status: "confirmado", confidence: 0, source: "android", sourceSheet: "", sourceCell: "", createdAt: timestamp, updatedAt: timestamp, archived: false, archivedAt: "" };
       links.unshift(link);
       writeDatabase(database);
       return { ok: true, link };
@@ -224,9 +329,13 @@
 
     if (pathname === "/api/settings" && method === "PATCH") { database.settings = { ...database.settings, ...payload, storage: { ...database.settings.storage, ...(payload.storage || {}) } }; writeDatabase(database); return { ok: true, settings: database.settings }; }
     if (pathname === "/api/import" && method === "POST") {
-      const imported = typeof payload.content === "string" ? JSON.parse(payload.content) : payload.content;
-      const target = ensureTodos(database); const existing = new Set(database.links.map((link) => normalizedUrl(link.url))); let count = 0;
-      for (const source of (imported.links || [])) { const url = String(source.url || "").trim(); if (!/^https?:\/\//i.test(url) || existing.has(normalizedUrl(url))) continue; const timestamp = now(); database.links.push({ id: id("link"), url, title: String(source.title || url), description: String(source.description || ""), thumbnail: String(source.thumbnail || ""), platform: hostFromUrl(url), tags: Array.isArray(source.tags) ? source.tags : [], categoryId: target.id, status: "confirmado", createdAt: source.createdAt || timestamp, updatedAt: timestamp, archived: false, archivedAt: "" }); existing.add(normalizedUrl(url)); count++; }
+      const format = String(payload.format || "json").toLowerCase();
+      const imported = format === "json"
+        ? (typeof payload.content === "string" ? JSON.parse(payload.content) : payload.content)
+        : format === "txt"
+          ? textImport(payload.content)
+          : csvImport(payload.content);
+      const count = mergeImport(database, imported || {});
       writeDatabase(database); return { ok: true, imported: count, links: database.links.length, categories: database.categories.length };
     }
     throw new Error("Operación no disponible en Android");
@@ -235,7 +344,7 @@
   window.linkotecaAndroidApi = androidApi;
   window.linkotecaAndroidExport = (format = "json") => {
     const database = readDatabase();
-    if (format === "csv") return csvExport(database);
+    if (format === "csv" || format === "xls") return csvExport(database);
     if (format === "txt") return database.links.map((link) => `${link.title || link.url}\n${link.url}`).join("\n\n");
     return JSON.stringify(exportDatabase(database), null, 2);
   };

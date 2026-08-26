@@ -14,9 +14,10 @@ $env:ANDROID_HOME = $SdkRoot
 $env:ANDROID_SDK_ROOT = $SdkRoot
 $env:Path = "$JavaRoot\bin;$env:Path"
 $Dist = Join-Path $ProjectRoot "dist"
+$Version = (Get-Content (Join-Path $ProjectRoot "package.json") -Raw | ConvertFrom-Json).version
 $Unsigned = Join-Path $ProjectRoot "android\app\build\outputs\apk\release\app-release-unsigned.apk"
-$Aligned = Join-Path $Dist "Linkoteca-Android-1.0.0-aligned.apk"
-$Output = Join-Path $Dist "Linkoteca-Android-1.0.0.apk"
+$Aligned = Join-Path $Dist "Linkoteca-Android-$Version-aligned.apk"
+$Output = Join-Path $Dist "Linkoteca-Android-$Version.apk"
 $Zipalign = Join-Path $SdkRoot "build-tools\36.0.0\zipalign.exe"
 $Apksigner = Join-Path $SdkRoot "build-tools\36.0.0\apksigner.bat"
 
