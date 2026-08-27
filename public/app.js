@@ -107,7 +107,6 @@ const els = {
   exportDataButton: document.querySelector("#exportDataButton"),
   importDataButton: document.querySelector("#importDataButton"),
   importFileInput: document.querySelector("#importFileInput"),
-  saveSettingsButton: document.querySelector("#saveSettingsButton"),
   toast: document.querySelector("#toast")
 };
 
@@ -1240,22 +1239,16 @@ function fillSettings() {
 }
 
 function openSettingsDialog() {
-  if (!els.settingsDialog.open) els.settingsDialog.showModal();
+  if (!els.settingsDialog.open) {
+    els.settingsDialog.showModal();
+    const panel = els.settingsDialog.querySelector(".settings-panel");
+    if (panel) panel.scrollTop = 0;
+  }
   try {
     fillSettings();
   } catch (error) {
     toast(`No se pudo cargar una opción: ${error.message}`);
   }
-}
-
-async function saveSettings() {
-  const settings = { storage: { format: els.dataFormatInput.value } };
-  const data = await api("/api/settings", {
-    method: "PATCH",
-    body: JSON.stringify(settings)
-  });
-  state.db.settings = data.settings;
-  toast("Configuración guardada");
 }
 
 function downloadData() {
@@ -1451,10 +1444,6 @@ els.groupDialog.addEventListener("close", () => {
 
 els.settingsButton.addEventListener("click", () => {
   openSettingsDialog();
-});
-
-els.saveSettingsButton.addEventListener("click", () => {
-  saveSettings().catch((error) => toast(error.message));
 });
 
 els.checkUpdateButton.addEventListener("click", () => {

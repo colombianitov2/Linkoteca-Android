@@ -7,7 +7,7 @@
     <title>Linkoteca</title>
     <link rel="icon" href="/icon.png?v=28" type="image/png">
     <link rel="manifest" href="/manifest.webmanifest?v=19">
-    <link rel="stylesheet" href="/styles.css?v=26">
+    <link rel="stylesheet" href="/styles.css?v=29">
   </head>
   <body>
     <div class="app-shell">
@@ -38,13 +38,13 @@
             <span class="button-left"><span class="icon" style="--icon: url('/icons/copy.svg')"></span>Duplicados</span>
             <span id="duplicatesCount" class="count">0</span>
           </button>
-          <button id="trashButton" class="sidebar-button" type="button">
-            <span class="button-left"><span class="icon" style="--icon: url('/icons/x.svg')"></span>Papelera</span>
-            <span id="trashCount" class="count">0</span>
-          </button>
           <button id="allLinksButton" class="sidebar-button active" type="button">
             <span class="button-left"><span class="icon" style="--icon: url('/icons/library.svg')"></span>Todos</span>
             <span id="allCount" class="count">0</span>
+          </button>
+          <button id="trashButton" class="sidebar-button" type="button">
+            <span class="button-left"><span class="icon" style="--icon: url('/icons/x.svg')"></span>Papelera</span>
+            <span id="trashCount" class="count">0</span>
           </button>
         </div>
 
@@ -296,7 +296,7 @@
               <option value="xls">Excel (.xls)</option>
             </select>
           </label>
-          <div class="dialog-actions inline-actions">
+          <div class="dialog-actions inline-actions data-transfer-actions">
             <button id="exportDataButton" class="ghost-button" type="button">
               <span class="icon" style="--icon: url('/icons/download.svg')"></span>
               Exportar
@@ -319,18 +319,12 @@
           </ol>
         </section>
 
-        <div class="dialog-actions settings-savebar">
-          <button id="saveSettingsButton" type="button">
-            <span class="icon" style="--icon: url('/icons/check.svg')"></span>
-            Guardar configuración
-          </button>
-        </div>
       </form>
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script src="/android-local-api.js?v=1"></script>
-    <script src="/app.js?v=28" type="module"></script>
+    <script src="/android-local-api.js?v=2"></script>
+    <script src="/app.js?v=30" type="module"></script>
   </body>
 </html>

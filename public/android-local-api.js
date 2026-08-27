@@ -14,6 +14,7 @@
       return String(value || "").trim().toLowerCase();
     }
   };
+  const archivedFlag = (value) => value === true || String(value || "").toLowerCase() === "true";
   const hostFromUrl = (value) => {
     try { return new URL(value).hostname.replace(/^www\./, ""); } catch { return "web"; }
   };
@@ -101,8 +102,10 @@
 
   function csvExport(database) {
     const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-    const rows = [["title", "url", "description", "category", "archived"]];
-    for (const link of database.links) rows.push([link.title, link.url, link.description, findCategory(database, link.categoryId)?.name || "", link.archived ? "true" : "false"]);
+    const rows = [["type", "id", "name", "title", "url", "description", "categoryId", "groupId", "archived"]];
+    for (const group of database.groups) rows.push(["group", group.id, group.name, "", "", "", "", "", group.archived ? "true" : "false"]);
+    for (const category of database.categories) rows.push(["category", category.id, category.name, "", "", "", "", category.groupId || "", category.archived ? "true" : "false"]);
+    for (const link of database.links) rows.push(["link", link.id, "", link.title, link.url, link.description, link.categoryId || "", "", link.archived ? "true" : "false"]);
     return rows.map((row) => row.map(quote).join(",")).join("\n");
   }
 
@@ -128,14 +131,49 @@
       }
     }
     const headers = (rows.shift() || []).map((value) => value.trim().toLowerCase());
+    const records = rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] || ""])));
+    if (headers.includes("type")) {
+      return {
+        groups: records.filter((record) => record.type === "group").map((record) => ({ id: record.id, name: record.name, archived: record.archived })),
+        categories: records.filter((record) => record.type === "category").map((record) => ({ id: record.id, name: record.name, groupId: record.groupid, archived: record.archived })),
+        links: records.filter((record) => record.type === "link").map((record) => ({ id: record.id, title: record.title, url: record.url, description: record.description, categoryId: record.categoryid, archived: record.archived }))
+      };
+    }
     return {
-      links: rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] || ""])))
+      links: records
     };
   }
 
   function textImport(content) {
+    const text = String(content || "").trim();
+    if (text.startsWith("LINKOTECA-TXT-1")) {
+      const imported = { groups: [], categories: [], links: [] };
+      let section = "";
+      for (const line of text.split(/\r?\n/).slice(1)) {
+        const value = line.trim();
+        if (!value) continue;
+        if (value === "[GROUPS]") { section = "groups"; continue; }
+        if (value === "[CATEGORIES]") { section = "categories"; continue; }
+        if (value === "[LINKS]") { section = "links"; continue; }
+        if (section) imported[section].push(JSON.parse(value));
+      }
+      return imported;
+    }
     const urls = String(content || "").match(/https?:\/\/[^\s]+/gi) || [];
     return { links: urls.map((url) => ({ url, title: url })) };
+  }
+
+  function textExport(database) {
+    const exported = exportDatabase(database);
+    return [
+      "LINKOTECA-TXT-1",
+      "[GROUPS]",
+      ...exported.groups.map((group) => JSON.stringify(group)),
+      "[CATEGORIES]",
+      ...exported.categories.map((category) => JSON.stringify(category)),
+      "[LINKS]",
+      ...exported.links.map((link) => JSON.stringify(link))
+    ].join("\n");
   }
 
   function mergeImport(database, imported) {
@@ -150,7 +188,7 @@
           id: sourceId && !database.groups.some((group) => group.id === sourceId) ? sourceId : id("group"),
           name: String(source.name || "Grupo importado").trim(),
           slug: String(source.slug || ""),
-          archived: Boolean(source.archived),
+          archived: archivedFlag(source.archived),
           archivedAt: String(source.archivedAt || ""),
           createdAt: source.createdAt || now(),
           updatedAt: source.updatedAt || now()
@@ -172,7 +210,7 @@
           slug: String(source.slug || ""),
           parentId: null,
           groupId: mappedGroupId,
-          archived: Boolean(source.archived),
+          archived: archivedFlag(source.archived),
           archivedAt: String(source.archivedAt || ""),
           createdAt: source.createdAt || now(),
           updatedAt: source.updatedAt || now()
@@ -345,7 +383,7 @@
   window.linkotecaAndroidExport = (format = "json") => {
     const database = readDatabase();
     if (format === "csv" || format === "xls") return csvExport(database);
-    if (format === "txt") return database.links.map((link) => `${link.title || link.url}\n${link.url}`).join("\n\n");
+    if (format === "txt") return textExport(database);
     return JSON.stringify(exportDatabase(database), null, 2);
   };
 })();

@@ -7,5 +7,7 @@ android/local.properties
 *.jks
 *.keystore
 keystore.properties
+signing.properties
+.safety-backup-*/
 public/icon-taskbar-preview.png
 public/taskbar-current.png
