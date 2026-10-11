@@ -1,5 +1,6 @@
 node_modules/
 dist/
+captures/
 android/.gradle/
 android/build/
 android/app/build/

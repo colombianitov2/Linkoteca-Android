@@ -437,8 +437,8 @@ function toast(message) {
 }
 
 function filteredLinks() {
-  const hideViewControls = state.activeCategoryId === "trash" || state.activeCategoryId === "duplicates";
-  const term = hideViewControls ? "" : state.search.trim().toLowerCase();
+  const normalizeSearch = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const terms = normalizeSearch(state.search).trim().split(/\s+/).filter(Boolean);
   const duplicateUrls = state.activeCategoryId === "duplicates" ? duplicateUrlSet() : null;
   const activeCategory = state.db.categories.find((category) => category.id === state.activeCategoryId);
   return state.db.links.filter((link) => {
@@ -452,8 +452,8 @@ function filteredLinks() {
         link.categoryId === state.activeCategoryId
       ));
     if (!inCategory) return false;
-    if (!term) return true;
-    const haystack = [
+    if (!terms.length) return true;
+    const haystack = normalizeSearch([
       link.title,
       link.description,
       link.url,
@@ -461,9 +461,8 @@ function filteredLinks() {
       categoryName(link.categoryId),
       ...(link.tags || [])
     ]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(term);
+      .join(" "));
+    return terms.every((term) => haystack.includes(term));
   });
 }
 
@@ -738,7 +737,9 @@ function renderGallery() {
   renderHeader(links);
   els.gallery.innerHTML = "";
   els.emptyState.hidden = links.length > 0;
-  if (state.activeCategoryId === "all") {
+  if (state.search.trim()) {
+    els.emptyState.textContent = "No hay enlaces que coincidan con la búsqueda.";
+  } else if (state.activeCategoryId === "all") {
     els.emptyState.textContent = "No hay enlaces activos.";
   } else if (state.activeCategoryId === "trash") {
     els.emptyState.textContent = "No hay enlaces en la Papelera.";

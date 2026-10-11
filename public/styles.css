@@ -600,6 +600,7 @@ textarea {
 .search-wrap {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 10px;
   min-height: 44px;
   border: 1px solid var(--line);
@@ -616,6 +617,7 @@ textarea {
 }
 
 .search {
+  min-width: 0;
   min-height: 40px;
   border: 0;
   padding: 0;
@@ -1253,7 +1255,7 @@ textarea {
     z-index: auto;
     overflow-y: visible;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 148px;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 10px;
     height: auto;
@@ -1295,7 +1297,6 @@ textarea {
   }
 
   .app-shell.sidebar-collapsed .main .title-block,
-  .app-shell.sidebar-collapsed .main .search-wrap,
   .app-shell.sidebar-collapsed .main #settingsButton,
   .app-shell.sidebar-collapsed .main #selectLinksButton {
     display: none;
@@ -1350,7 +1351,37 @@ textarea {
   }
 
   .toolbar {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toolbar .search-wrap,
+  .toolbar .empty-trash-button {
+    grid-column: 1 / -1;
+  }
+
+  .toolbar button {
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .dialog {
+    max-height: calc(100dvh - 24px);
+    max-width: calc(100vw - 24px);
+    overflow-y: auto;
+  }
+
+  .settings-panel {
+    max-height: calc(100dvh - 24px);
+  }
+
+  .card-actions {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 100px), 1fr));
+  }
+
+  .card-actions button {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    padding-block: 8px;
   }
 
   .add-band {
@@ -1397,16 +1428,19 @@ textarea {
 
   .brand {
     min-height: 44px;
+    min-width: 0;
+    gap: 8px;
     margin-bottom: 10px;
   }
 
   .brand-mark {
-    width: 42px;
-    height: 42px;
+    width: clamp(28px, 9vw, 42px);
+    height: clamp(28px, 9vw, 42px);
+    flex: 0 0 auto;
   }
 
   .brand strong {
-    font-size: 22px;
+    font-size: clamp(16px, 5vw, 22px);
   }
 
   .sidebar-toggle {
@@ -1415,8 +1449,13 @@ textarea {
   }
 
   .sidebar-collapsed .sidebar {
-    grid-template-columns: minmax(0, 1fr) 148px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
     min-height: 68px;
+  }
+
+  .sidebar-collapsed .sidebar-quick-actions {
+    gap: 6px;
   }
 
   .sidebar-actions {
@@ -1556,11 +1595,11 @@ textarea {
   }
 
   .card-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 100px), 1fr));
   }
 
   .card-actions button {
-    min-height: 42px;
+    min-height: 44px;
     padding: 8px 6px;
     font-size: 11px;
     justify-content: flex-start;

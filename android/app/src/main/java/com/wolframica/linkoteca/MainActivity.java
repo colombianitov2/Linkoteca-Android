@@ -1,6 +1,8 @@
 package com.wolframica.linkoteca;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -8,8 +10,14 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.webkit.JavascriptInterface;
+import android.view.ViewGroup;
+import android.view.WindowManager;
 
 import androidx.core.content.FileProvider;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -41,7 +49,23 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        getWindow().setBackgroundDrawable(new ColorDrawable(Color.rgb(251, 250, 247)));
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView()).setAppearanceLightStatusBars(true);
+        WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView()).setAppearanceLightNavigationBars(true);
         if (getBridge() != null && getBridge().getWebView() != null) {
+            // Keep all web content inside the safe area, including when the keyboard opens.
+            ViewCompat.setOnApplyWindowInsetsListener(getBridge().getWebView(), (view, windowInsets) -> {
+                Insets safeArea = windowInsets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.ime()
+                );
+                ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
+                margins.setMargins(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom);
+                view.setLayoutParams(margins);
+                return WindowInsetsCompat.CONSUMED;
+            });
+            ViewCompat.requestApplyInsets(getBridge().getWebView());
             getBridge().getWebView().addJavascriptInterface(new FileBridge(), "LinkotecaFiles");
             getBridge().getWebView().addJavascriptInterface(new UpdateBridge(), "LinkotecaUpdater");
         }

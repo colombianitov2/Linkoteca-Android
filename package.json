@@ -1,6 +1,6 @@
 {
   "name": "linkoteca-android",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "Linkoteca para Android con almacenamiento local en el dispositivo.",
   "scripts": {

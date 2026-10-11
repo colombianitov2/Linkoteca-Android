@@ -2,6 +2,9 @@
   "appId": "com.wolframica.linkoteca",
   "appName": "Linkoteca",
   "webDir": "public",
+  "android": {
+    "adjustMarginsForEdgeToEdge": "auto"
+  },
   "server": {
     "androidScheme": "https"
   }

@@ -1,6 +1,6 @@
 (() => {
   const STORAGE_KEY = "linkotecaAndroidDatabase";
-  const APP_VERSION = "1.0.3";
+  const APP_VERSION = "1.0.4";
   const inactiveStatuses = new Set(["trash", "deleted", "eliminado", "papelera"]);
 
   const id = (prefix) => `${prefix}-${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
